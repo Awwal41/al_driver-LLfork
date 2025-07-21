@@ -1,4 +1,4 @@
-143526# Global (python) modules
+# Global (python) modules
 
 import os.path
 import os
@@ -12,7 +12,6 @@ import helpers
 import hierarch
 import modify_FES
 
-import shutil
 
 def combine(to_file, from_files):
 
@@ -55,16 +54,14 @@ def subtract(**kwargs):
     args.update(kwargs)    
     
     print("Will subtract force, energy, and stress contributions arising from parameters/files at:")
-    
-    print(args["parameters"])
 
     if not isinstance(args["parameters"],list):    
         args["parameters"] = [args["parameters"]]
         for i in args["parameters"]:
-            print("\t",i)        
-            
-    print(args["parameters"])            
-    
+            print("\t",i)       
+    else:
+        print("\t",args["parameters"])
+
     print("Will subtract from trajectory file(s):")
     for i in args["trajectories"]:
         print("\t",i)
@@ -195,6 +192,8 @@ def gen_weights_one(w_method, this_ALC, b_labeled_i, natoms_i):
     
     E. w = n_atoms^a0
     
+    F. w = a0*exp(a1[ X/n_atoms-a2]/a3)
+    
     Example wXX value: ["C",[a0,a1,a2]]
     
                
@@ -243,7 +242,7 @@ def gen_weights_one(w_method, this_ALC, b_labeled_i, natoms_i):
             print(w_method)
             exit()
     
-        weight =  float(w_method[1][0]) * m.exp( float(w_method[1][1]) * (abs(float(b_labeled_i))-float(w_method[1][2])) / float(w_method[1][3]) )        
+        weight =  float(w_method[1][0]) * m.exp( float(w_method[1][1]) * (float(b_labeled_i)-float(w_method[1][2])) / float(w_method[1][3]) )        
         
     
     elif w_method[0] == "E":
@@ -252,9 +251,18 @@ def gen_weights_one(w_method, this_ALC, b_labeled_i, natoms_i):
             print("ERROR: Found weight request with wrong number of parameters:")
             print(w_method)
             exit()
+
+        weight =  float(natoms_i)**float(w_method[1][0])
+	
+    elif w_method[0] == "F":
     
-        weight =  float(natoms_i)**float(w_method[1][1])
+        if len(w_method[1]) != 4:
+            print("ERROR: Found weight request with wrong number of parameters:")
+            print(w_method)
+            exit()
     
+        weight =  float(w_method[1][0]) * m.exp( float(w_method[1][1]) * (float(b_labeled_i)/float(natoms_i)-float(w_method[1][2])) / float(w_method[1][3]) )        
+
     else:
         print("ERROR: Unknown weight method!")
         exit()
@@ -282,6 +290,8 @@ def gen_weights(w_method, this_ALC, b_labeled_i, natoms_i):
     D. w = a0*exp(a1[X-a2]/a3)
     
     E. w = n_atoms^a0
+    
+    F. w = a0*exp(a1[ X/n_atoms-a2]/a3)
     
     Example wXX value: [ ["A","B","C"] , [[a0],[a0,a1],[a0,a1,a2]] ]
     
@@ -425,11 +435,10 @@ def restart_solve_amat(my_ALC, **kwargs):
     
     
     # Figure out what the restart job was:
-    
+     
     prev_restarts = sorted(glob.glob("restart*txt"))
-    print(prev_restarts)
     tmp = prev_restarts[0:-1]
-    print(tmp)
+
 
     def numeric_keys(instr):
         return int(instr.split('-')[-1].split('.')[0])
@@ -440,7 +449,7 @@ def restart_solve_amat(my_ALC, **kwargs):
     prev_restarts = copy.deepcopy(tmp)
     
     print("Found the following dlars/dlasso restart files:", prev_restarts)
-    
+
     if len(prev_restarts) == 0:
         print("Bad logic in restart_solve_amat...")
         print("prev_restarts list is empty")
@@ -655,8 +664,8 @@ def build_amat(my_ALC, **kwargs):
     # 0. Set up an argument parser
     ################################
     
-    default_keys   = [""]*26
-    default_values = [""]*26
+    default_keys   = [""]*27
+    default_values = [""]*27
     
     # Paths
     
@@ -668,29 +677,30 @@ def build_amat(my_ALC, **kwargs):
     default_keys[5 ] = "include_stress"    ; default_values[5 ] =     False                  # Should stress tensors be included in the A-matrix?
     default_keys[6 ] = "stress_style"      ; default_values[6 ] =     "DIAG"                 # Should the full stress tensor or only diagonal componets be considered? Only used if include_stress is true
     default_keys[7 ] = "do_hierarch"       ; default_values[7 ] =     False                  # Are we building parameters hierarchically?
-    default_keys[8 ] = "hierarch_files"    ; default_values[8 ] =     []                     # List of existing parameter files for hierarchical fitting
-    default_keys[9 ] = "hierarch_exe"      ; default_values[9 ] =     None                   # Executable for subtracting parameter file contributions
-    default_keys[10] = "do_correction"     ; default_values[10] =     False                  # Are we fitting a correction to an underlying method?
-    default_keys[11] = "correction_exe"    ; default_values[11] =     None                   # Exectuable to evaluate interactions via method to be corrected
-    default_keys[12] = "correction_files"  ; default_values[12] =     None                   # Path to directory containng files needed for calculating interactions via method to be corrected
-    default_keys[13] = "correction_exe"    ; default_values[13] =     None                   # Executable for method being corrected
-    default_keys[14] = "correction_temps"  ; default_values[14] =     None                   # How to handle electron temperatures for 1st ALC
-    default_keys[15] = "n_hyper_sets"      ; default_values[15] =     1                      # Number of unique fm_setup.in files; allows fitting, e.g., multiple overlapping models to the same data
+    default_keys[8 ] = "hierarch_method"   ; default_values[7 ] =     "CHIMES"  	     # Method for determining hierarch. contributions
+    default_keys[9 ] = "hierarch_files"    ; default_values[8 ] =     []		     # List of existing parameter files for hierarchical fitting
+    default_keys[10] = "hierarch_exe"	   ; default_values[9 ] =     None		     # Executable for subtracting parameter file contributions
+    default_keys[11] = "do_correction"     ; default_values[10] =     False		     # Are we fitting a correction to an underlying method?
+    default_keys[12] = "correction_exe"    ; default_values[11] =     None		     # Exectuable to evaluate interactions via method to be corrected
+    default_keys[13] = "correction_files"  ; default_values[12] =     None                   # Path to directory containng files needed for calculating interactions via method to be corrected
+    default_keys[14] = "correction_exe"    ; default_values[13] =     None                   # Executable for method being corrected
+    default_keys[15] = "correction_temps"  ; default_values[14] =     None                   # How to handle electron temperatures for 1st ALC
+    default_keys[16] = "n_hyper_sets"      ; default_values[15] =     1                      # Number of unique fm_setup.in files; allows fitting, e.g., multiple overlapping models to the same data
     
     
         
     # Job controls
     
-    default_keys[16] = "job_name"          ; default_values[16] =     "ALC-"+ repr(my_ALC)+"-lsq-1"   # Name for ChIMES lsq job
-    default_keys[17] = "job_nodes"         ; default_values[17] =     "2"                             # Number of nodes for ChIMES lsq job
-    default_keys[18] = "job_ppn"           ; default_values[18] =     "36"                            # Number of processors per node for ChIMES lsq job
-    default_keys[19] = "job_walltime"      ; default_values[19] =     "1"                             # Walltime in hours for ChIMES lsq job
-    default_keys[20] = "job_queue"         ; default_values[20] =     "pdebug"                        # Queue for ChIMES lsq job
-    default_keys[21] = "job_account"       ; default_values[21] =     "pbronze"                       # Account for ChIMES lsq job
-    default_keys[22] = "job_executable"    ; default_values[22] =     ""                              # Full path to executable for ChIMES lsq job
-    default_keys[23] = "job_system"        ; default_values[23] =     "slurm"                         # slurm or torque    
-    default_keys[24] = "job_email"         ; default_values[24] =      True                           # Send slurm emails?
-    default_keys[25] = "job_modules"       ; default_values[25] =     ""                              # Modules for the job
+    default_keys[17] = "job_name"	   ; default_values[16] =     "ALC-"+ repr(my_ALC)+"-lsq-1"   # Name for ChIMES lsq job
+    default_keys[18] = "job_nodes"	   ; default_values[17] =     "2"			      # Number of nodes for ChIMES lsq job
+    default_keys[19] = "job_ppn"	   ; default_values[18] =     "36"			      # Number of processors per node for ChIMES lsq job
+    default_keys[20] = "job_walltime"	   ; default_values[19] =     "1"			      # Walltime in hours for ChIMES lsq job
+    default_keys[21] = "job_queue"	   ; default_values[20] =     "pdebug"  		      # Queue for ChIMES lsq job
+    default_keys[22] = "job_account"	   ; default_values[21] =     "pbronze" 		      # Account for ChIMES lsq job
+    default_keys[23] = "job_executable"    ; default_values[22] =     ""			      # Full path to executable for ChIMES lsq job
+    default_keys[24] = "job_system"	   ; default_values[23] =     "slurm"			      # slurm or torque    
+    default_keys[25] = "job_email"	   ; default_values[24] =      True			      # Send slurm emails?
+    default_keys[26] = "job_modules"       ; default_values[25] =     ""                              # Modules for the job
 
     args = dict(list(zip(default_keys, default_values)))
     args.update(kwargs)
@@ -745,9 +755,10 @@ def build_amat(my_ALC, **kwargs):
             else:
                 print("FYI: No .xyzf files to copy from basefiles to " + GEN_FF)
             
-            if (args["do_correction"] and args["correction_temps"]) or (args["do_hierarch"]):
-                helpers.run_bash_cmnd("cp " + ' '.join(glob.glob(args["prev_gen_path"] + "/*temps"  )) + " " + GEN_FF + "/")
-                
+            if len(glob.glob(args["prev_gen_path"] + "/*temps")) > 0:
+                if (args["do_correction"] and args["correction_temps"]) or (args["do_hierarch"]):
+                    helpers.run_bash_cmnd("cp " + ' '.join(glob.glob(args["prev_gen_path"] + "/*temps"  )) + " " + GEN_FF + "/")
+ 
             nfiles = int(helpers.head(GEN_FF + "/traj_list.dat",1)[0])
     
             # Generate the temperature files
@@ -888,7 +899,10 @@ def build_amat(my_ALC, **kwargs):
     
         if (my_ALC == 0) or ((my_ALC == 1) and (not args["do_cluster"])):
             for i in range(n_traj_files):
-                traj_files[i] = GEN_FF + "/" + traj_files[i].split()[1]
+                if traj_files[i].split()[1][0] != "/":
+                    traj_files[i] = GEN_FF + "/" + traj_files[i].split()[1]
+                else:
+                    traj_files[i] = traj_files[i].split()[1]
         else:
             for i in range(n_traj_files):
                 if i < len(traj_files):
@@ -900,19 +914,18 @@ def build_amat(my_ALC, **kwargs):
         for i in range(n_traj_files):
             if i < len(traj_files):
                 temper_file.append(  '.'.join(traj_files[i].split(".")[0:-1]) + ".temps")
-                print(temper_file)
             else:
                     print(f"Index {i} is out of range for traj_files")
             
         ################################
         # Hierarch
         ################################
-    
+
         if args["do_hierarch"]:
     
             subtract(
                 md_driver    = args["hierarch_exe"],
-                method       = "CHIMES",
+                method       = args["hierarch_method"],
                 trajectories = traj_files,
                 temperatures = temper_file,
                 parameters   = args["hierarch_files"])
@@ -934,8 +947,9 @@ def build_amat(my_ALC, **kwargs):
         # 3. Set up and submit the .cmd file for the job
         ################################
     
-        os.chdir(GEN_FF)                    
-    
+        os.chdir(GEN_FF)   
+
+      
     
         # Create the task string
         print("Starting job: " + GEN_FF) # Added by BL
@@ -945,7 +959,7 @@ def build_amat(my_ALC, **kwargs):
         job_task = args["job_executable"] + " fm_setup.in | tee fm_setup.log"
         if int(args["n_hyper_sets"]) == 1:
             job_task = "-n " + repr(int(args["job_nodes"])*int(args["job_ppn"])) + " " + job_task
-        if args["job_system"] == "slurm" and int(args["n_hyper_sets"]) == 1:
+        if (args["job_system"] == "slurm" or args["job_system"] == "UM-ARC") and int(args["n_hyper_sets"]) == 1:
             job_task = "srun "   + job_task
         elif args["job_system"] == "TACC" and int(args["n_hyper_sets"]) == 1:
             job_task = "ibrun "   + job_task
@@ -1051,24 +1065,24 @@ def solve_amat(my_ALC, **kwargs):
     
     if int(args["n_hyper_sets"]) > 1:
         if os.path.exists("GEN_FF"):
-            shutil.rmtree("GEN_FF")  # Remove the existing GEN_FF directory
+            helpers.run_bash_cmnd("rm -r " + " GEN_FF")# Remove the existing GEN_FF directory
         os.mkdir("GEN_FF")  # Create the GEN_FF directory
 
     # Copy common files from GEN_FF-0 and GEN_FF-1 to GEN_FF
-        shutil.copy("GEN_FF-0/A.txt", "GEN_FF")
-        shutil.copy("GEN_FF-0/b.txt", "GEN_FF")
-        shutil.copy("GEN_FF-0/b-labeled.txt", "GEN_FF")
-        shutil.copy("GEN_FF-0/natoms.txt", "GEN_FF")
-        shutil.copy("GEN_FF-0/traj_list.dat", "GEN_FF")
-        shutil.copy("GEN_FF-0/fm_setup.in", "GEN_FF")
+        helpers.run_bash_cmnd("cp " + " GEN_FF-0/A.txt" + " GEN_FF")
+        helpers.run_bash_cmnd("cp " + " GEN_FF-0/b.txt" + " GEN_FF")
+        helpers.run_bash_cmnd("cp " + " GEN_FF-0/b-labeled.txt" + " GEN_FF")
+        helpers.run_bash_cmnd("cp " + " GEN_FF-0/natoms.txt" + " GEN_FF")
+        helpers.run_bash_cmnd("cp " + " GEN_FF-0/traj_list.dat" + " GEN_FF")
+        helpers.run_bash_cmnd("cp " + " GEN_FF-0/fm_setup.in" + " GEN_FF")
 
 
 
         for i in range(1, int(args["n_hyper_sets"])):
             print("Pasting from:", i)
-            shutil.move("GEN_FF/fm_setup.in", "GEN_FF/0.fm_setup.in")
-            shutil.copy(f"GEN_FF-{i}/fm_setup.in", "GEN_FF")
-            shutil.move("GEN_FF/fm_setup.in", f"GEN_FF/{i}.fm_setup.in")
+            helpers.run_bash_cmnd("mv " + " GEN_FF/fm_setup.in" + " GEN_FF/0.fm_setup.in")
+            helpers.run_bash_cmnd("cp " + f" GEN_FF-{i}/fm_setup.in" + " GEN_FF")
+            helpers.run_bash_cmnd("mv " + " GEN_FF/fm_setup.in" + f" GEN_FF/{i}.fm_setup.in")
             paste_cmd = f"paste GEN_FF/A.txt GEN_FF-{i}/A.txt > tmp"
             print(paste_cmd)
             os.system(paste_cmd)

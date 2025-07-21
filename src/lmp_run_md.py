@@ -38,14 +38,28 @@ def writeframe(frame, badness, badstream0, badstream1, badstream2):
         print("In writeframe, badness is:",badness)
         exit();
         
-    boxl_x = frame[5]; boxl_x = boxl_x.split()[-1]
-    boxl_y = frame[6]; boxl_y = boxl_y.split()[-1]
-    boxl_z = frame[7]; boxl_z = boxl_z.split()[-1]
-    
     xyz_text = []
     xyz_text.append(frame[3]) # Number of atoms
-    xyz_text.append(boxl_x + " " + boxl_y + " " + boxl_z + '\n')
     
+    boxl_x = frame[5]; boxl_x = boxl_x.split()
+    boxl_y = frame[6]; boxl_y = boxl_y.split()
+    boxl_z = frame[7]; boxl_z = boxl_z.split()
+
+    if len(boxl_x) == 3: # Then its non-orthorhombic
+        xyz_text.append("NON_ORTHO" + " " + ' '.join(boxl_x) + " " + ' '.join(boxl_y) + " " + ' '.join(boxl_z))
+                        
+    elif len(boxl_x) == 2: # Then orthorhombic
+
+        boxl_x = str(float(boxl_x[1]) - float(boxl_x[0]))
+        boxl_y = str(float(boxl_y[1]) - float(boxl_y[0]))
+        boxl_z = str(float(boxl_z[1]) - float(boxl_z[0]))
+
+        xyz_text.append(boxl_x + " " + boxl_y + " " + boxl_z + '\n')
+	
+    else:
+        print("ERROR: Unrecognized box dimension style in lammps traj file")
+        exit(0)
+
     fields = frame[8].split()
     
     elem = fields.index("element")-2
@@ -117,22 +131,29 @@ def generate_trajbads():
 
         # Determine the frame badness
 
-        badness = raw_badness[bad_idx_start][1] # Get the first badness assigned to this frame
+        badness =  0 # Create a variable to store how bad the frame is. Intalize as zero
         
         #print("here:",int(badness), "note:",len(raw_badness))
         
         for j in range(bad_idx_start, len(raw_badness)):
         
             #print("trying i,j:",i,j,"; raw has frame:",raw_badness[j][0], "trj has frame:",frame)
+
+            # Check if the current frame stored in raw_badness[j][0] matches the frame we are operating on (i)
+
+            if int(raw_badness[j][0]) == int(frame):
+                if int(raw_badness[j][1]) >= int(badness):
+                    badness =  raw_badness[j][1]
+
+            # rawbadness is sorted by frame index, so If the current frame sstored in  raw_badness[j][1] 
+            # is greater than i, then nothing else interesting is in this file. Break so we can move on to the next frame i
+            # and update the bad_idx_start so we don't waste time iterating through raw_badness data for frames with index < i
         
-            if int(raw_badness[j][0]) != int(frame):
+            elif int(raw_badness[j][0]) > int(frame):
                 bad_idx_start = j
                 #print("\tBreaking - set start to:",bad_idx_start)
                 break
-            
-            elif int(raw_badness[j][1]) >= int(badness):
-                #print("\tUpdating badness to:",raw_badness[j][1])
-                badness = raw_badness[j][1]
+
             else:
                 print("\tSomething strange happened...")
                 
@@ -413,10 +434,10 @@ def run_md(my_ALC, my_case, my_indep, *argv, **kwargs):
     job_task = ""
     
 
-    if args["job_system"] == "slurm":
+    if (args["job_system"] == "slurm" or args["job_system"] == "UM-ARC"):
         job_task += "srun -N "   + repr(int(args["job_nodes" ])) + " -n " + repr(int(args["job_nodes"])*int(args["job_ppn"])) + " "
     elif args["job_system"] == "TACC":
-        job_task == "    ibrun " + "-n " + repr(int(args["job_nodes"])*int(args["job_ppn"])) + " "
+        job_task += "ibrun " + "-n " + repr(int(args["job_nodes"])*int(args["job_ppn"])) + " "
     else:
         job_task += "mpirun -np" + repr(int(args["job_nodes" ])) + " -n " + repr(int(args["job_nodes"])*int(args["job_ppn"])) + " "
         

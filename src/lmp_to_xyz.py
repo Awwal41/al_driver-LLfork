@@ -42,17 +42,15 @@ def lmp_to_xyzf(units, trjfile, logfile):  # , argv):
 
     # Specify conversion factors to get things in ChIMES xyzf file units:
 
-    econv = 1.0  # For lammps units real (kcal/mol) to kcal/mol
-    fconv = 1.0 / 1.88973 / 627.509551  # For lammps units real (Kcal/mol/Ang) to H/Bohr
-    sconv = 0.000101325  # From lammps units real (atm) to GPa
+    econv  = 1.0  # For lammps units real (kcal/mol) to kcal/mol
+    fconv  = 1.0 / 1.88973 / 627.509551  # For lammps units real (Kcal/mol/Ang) to H/Bohr
+    sconv  = 0.000101325  # From lammps units real (atm) to GPa
     gascon = 8.31446261815324  # m^3 Pa / K / mol
-    mole = 6.02e23
+    mole   = 6.02e23
 
     if units == "METAL":
 
-        print(
-            "WARNING: Metal units functionality untested - check your results carefully and report back!"
-        )
+        print("WARNING: Metal units functionality untested - check your results carefully and report back!")
 
         econv = 1.0 / 27.211399  # For lammps units metal (eV) to kcal/mol
         fconv = 1.0 / 1.88973 / 27.211399  # For lammps units metal (eV/Ang) to H/Bohr
@@ -60,12 +58,15 @@ def lmp_to_xyzf(units, trjfile, logfile):  # , argv):
 
     # Count the number of stats lines in the log file - this should match the number of frames in the traj file
 
-    stats_start = (
-        int(helpers.getlineno("Step", logfile)[-1]) + 1
-    )  # Index of first thermo output line
-    stats_end = (
-        int(helpers.getlineno("Loop", logfile)[-1]) - 1
-    )  # Index of last thermo output line
+    stats_start = int(helpers.getlineno("Step", logfile)[-1]) + 1  # Index of first thermo output line
+    stats_end   = None
+    try:
+        stats_end = int(helpers.getlineno("Loop", logfile)[-1]) - 1  # Index of last thermo output line
+    except:
+        try:
+            stats_end = int(helpers.getlineno("ERROR", logfile)[-1]) - 1  # Index of last thermo output line
+        except:
+            stats_end = int(helpers.wc_l(logfile))  # Index of last thermo output line
     nstat_lines = stats_end - stats_start + 1
 
     # Count the number of frames in the lammps file
@@ -75,12 +76,14 @@ def lmp_to_xyzf(units, trjfile, logfile):  # , argv):
     # Check that the number of lines/frames match
 
     if frames != nstat_lines:
-        print(
-            "ERROR: Number of frames and number of stats lines in log.lammps do not match!"
-        )
+        print("Warning: Number of frames and number of stats lines in log.lammps do not match!")
         print("Frames:", frames)
         print("Stats: ", nstat_lines)
-        exit()
+        print("Taking smaller of the two.")
+        if frames < nstat_lines:
+            nstat_lines = frames
+        else:
+            frames = nstat_lines
     else:
         print("\tCounted frames:           " + str(frames))
         print("\tPrinting every nth frame: " + str(skip))
@@ -89,7 +92,7 @@ def lmp_to_xyzf(units, trjfile, logfile):  # , argv):
 
     stats = helpers.head(logfile, stats_end + 1)[-nstat_lines:]
 
-    energy = []
+    energy  = []
     stensor = []
 
     for i in range(len(stats)):
@@ -109,27 +112,16 @@ def lmp_to_xyzf(units, trjfile, logfile):  # , argv):
 
         for j in range(6):
 
-            ptensor[j] = float(ptensor[j]) * sconv  # Convert to  GPa
+            ptensor[j]  = float(ptensor[j]) * sconv  # Convert to  GPa
 
-            ttensor[j] = float(ttensor[j])
-            ttensor[j] = (
-                3 / 2 * gascon / mole * ttensor[j]
-            )  # Convert ttensor to KE (units: J)
-            ttensor[j] /= (
-                float(vol) / 1e30
-            ) * 1e-9  # Convert KE to kinetic (IG) pressure (units: GPa)
-
-            ttensor[j] = (
-                ptensor[j] - ttensor[j]
-            )  # Convert IG pressure to cold (Virial) pressure (units: GPa)
+            ttensor[j]  = float(ttensor[j])
+            ttensor[j]  = (3 / 2 * gascon / mole * ttensor[j])  # Convert ttensor to KE (units: J)
+            ttensor[j] /= (float(vol) / 1e30) * 1e-9  # Convert KE to kinetic (IG) pressure (units: GPa)
+            ttensor[j]  = (ptensor[j] - ttensor[j])  # Convert IG pressure to cold (Virial) pressure (units: GPa)
 
         stensor.append([str(x) for x in ttensor])
 
     # Process the file
-
-    lx = 0.0
-    ly = 0.0
-    lz = 0.0
 
     ifstream = open(trjfile, "r")
 
@@ -155,12 +147,25 @@ def lmp_to_xyzf(units, trjfile, logfile):  # , argv):
         tmp_ly = ifstream.readline().split()
         tmp_lz = ifstream.readline().split()
 
-        lx = str(float(tmp_lx[1]) - float(tmp_lx[0]))
-        ly = str(float(tmp_ly[1]) - float(tmp_ly[0]))
-        lz = str(float(tmp_lz[1]) - float(tmp_lz[0]))
 
-        if (i + 1) % skip == 0:
-            ofstream.write(lx + " " + ly + " " + lz + "\n")
+        # Determine if we're working with an orthorhombic or non-orthrhombic box
+
+        if len(tmp_lx) == 3: # Then its non-orthorhombic
+          
+            if (i + 1) % skip == 0:
+                ofstream.write("NON_ORTHO" + " " + ' '.join(tmp_lx) + " " + ' '.join(tmp_ly) + " " + ' '.join(tmp_lz))
+                           
+        elif len(tmp_lx) == 2: # Then orthorhombic
+
+            lx = str(float(tmp_lx[1]) - float(tmp_lx[0]))
+            ly = str(float(tmp_ly[1]) - float(tmp_ly[0]))
+            lz = str(float(tmp_lz[1]) - float(tmp_lz[0]))
+
+            if (i + 1) % skip == 0:
+                ofstream.write(lx + " " + ly + " " + lz + "\n")
+        else:
+            print("ERROR: Unrecognized box dimension style in lammps traj file")
+            exit(0)
 
         line = ifstream.readline()  # ITEM: ATOMS id type element xu yu zu
         line = line.split()
