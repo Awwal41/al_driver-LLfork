@@ -763,6 +763,21 @@ def build_amat(my_ALC, **kwargs):
             helpers.run_bash_cmnd("cp " + args["prev_gen_path"] + "/" + FM_SETUP   + " " + GEN_FF + "/fm_setup.in")
             helpers.run_bash_cmnd("cp " + args["prev_gen_path"] + "/traj_list.dat" + " " + GEN_FF + "/traj_list.dat")
             
+
+            
+            ifstream = open(GEN_FF + "/fm_setup.in",'r')
+            runfile  = ifstream.readlines()
+
+            found1=False
+            for i in range(len(runfile)): # This loop is to make sure that split files is false
+                if found1:
+                    if "true" in runfile[i]:
+                        print("Error: This driver does NOT support SPLITFI functionality in fm_setup.in")
+                        print("Exiting.")
+                        exit()
+                if "SPLITFI" in runfile[i]: 
+                    found1=True
+                
             if len(glob.glob(args["prev_gen_path"] + "/*xyzf"  )) > 0:
                 helpers.run_bash_cmnd("cp " + ' '.join(glob.glob(args["prev_gen_path"] + "/*xyzf"  )) + " " + GEN_FF + "/")
             else:
@@ -830,6 +845,7 @@ def build_amat(my_ALC, **kwargs):
             found1 = False
             found2 = False
             found3 = False
+            found4 = False
     
             for i in range(len(runfile)):
     
@@ -867,7 +883,15 @@ def build_amat(my_ALC, **kwargs):
                         print("Warning: Setting FITSTRS false for ALC >",my_ALC)
                         ofstream.write('\t' + "false" + '\n')
             
-                    found3 = False    
+                    found3 = False
+                elif found4:
+                    if "true" in runfile[i]:
+                        print("Error: This driver does NOT support SPLITFI functionality in fm_setup.in")
+                        print("Exiting.")
+                        
+                        exit()
+                    else:
+                        ofstream.write(runfile[i])    
                 else:
     
                     ofstream.write(runfile[i])
@@ -879,7 +903,10 @@ def build_amat(my_ALC, **kwargs):
                         found2 = True    
                         
                     if "FITSTRS" in runfile[i]:
-                        found3 = True            
+                        found3 = True   
+                        
+                    if "SPLITFI" in runfile[i]:
+                        found4 = True          
                     
             ofstream.close()
             ifstream.close()
