@@ -199,6 +199,7 @@ def run_md(my_ALC, my_case, my_indep, *argv, **kwargs):
     default_keys[13] = "job_file"      ; default_values[13] = "run.cmd"                     # Name of the resulting submit script
     default_keys[14] = "job_email"     ; default_values[14] = True                           # Send slurm emails?
     default_keys[15] = "job_modules"   ; default_values[15] = ""                             # Send slurm emails?
+    default_keys.append("md_debug_mode"); default_values.append(False)                       # Random seed or debug mode
 
     args = dict(list(zip(default_keys, default_values)))
     args.update(kwargs)    
@@ -273,11 +274,14 @@ def run_md(my_ALC, my_case, my_indep, *argv, **kwargs):
         
     for i in range(len(runfile)):
     
-        if "RandomSeed" in runfile[i]:
-            ofstream.write('  RandomSeed = ' + str(1+my_indep) + str(1+my_indep) + str(1+my_indep) + str(1+my_indep) + '\n')
+        # Check if the line contains the seed AND if we are NOT in debug mode
+        if "RandomSeed" in runfile[i] and not args["md_debug_mode"]:
+            # Overwrite with the original deterministic logic
+            ofstream.write('  RandomSeed = ' + str(1+my_indep) * 4 + '\n')
         elif "<<<" in runfile[i]:
             ofstream.write("<<<\" " + md_xyzfile + "\"\n")
         else:
+            # In debug mode or for any other line, write it as-is
             ofstream.write(runfile[i])
 
                 
