@@ -1420,6 +1420,12 @@ def verify(user_config):
         print("         Will use False (MD seeds will be random).")
         user_config.MD_DEBUG_MODE = False
 
+    if user_config.MD_DEBUG_MODE:
+        print("INFO: MD_DEBUG_MODE set to True")
+        print("      Will preserve user-specified seeds in MD input files.")
+    else:
+        print("INFO: MD_DEBUG_MODE set to False")
+        print("      Will overwrite MD seeds with random values.")
     ################################
     ##### Cluster specific paths/variables
     ################################
