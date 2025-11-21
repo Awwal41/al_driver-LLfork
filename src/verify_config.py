@@ -1414,6 +1414,18 @@ def verify(user_config):
         print("       form of a NO_CASES long list, e.g. [\"4:00:00\"]*NO_CASES.")
         exit()
 
+    if not hasattr(user_config,'MD_DEBUG_MODE'):
+        # Add the abilitry to use the same seed for MD for debugging
+        print("WARNING: Option config.MD_DEBUG_MODE was not set.")
+        print("         Will use False (MD seeds will be random).")
+        user_config.MD_DEBUG_MODE = False
+
+    if user_config.MD_DEBUG_MODE:
+        print("INFO: MD_DEBUG_MODE set to True")
+        print("      Will preserve user-specified seeds in MD input files.")
+    else:
+        print("INFO: MD_DEBUG_MODE set to False")
+        print("      Will overwrite MD seeds with random values.")
     ################################
     ##### Cluster specific paths/variables
     ################################
