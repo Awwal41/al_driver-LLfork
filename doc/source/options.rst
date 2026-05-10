@@ -62,7 +62,7 @@ Input variable              Variable type  Required Default                     
 ``CHIMES_SOLVE_PPN   =``    int            Y        ``HPC_PPN``                                                                 Number of procs per node to use when running dlasso
 ``CHIMES_SOLVE_QUEUE =``    str            Y        pbatch                                                                      Queue to submit the dlasso job to
 ``CHIMES_SOLVE_TIME  =``    str            Y        "04:00:00"                                                                  Walltime for dlasso job
-``N_HYPER_SETS  =``         int            N        1                                                                           Number of unique fm_setup.in files; allows fitting, e.g., multiple overlapping models to the same data
+``N_HYPER_SETS  =``         int            N        1                                                                           Number of independent ChIMES layer setups (numbered ``*.fm_setup.in`` files). Values greater than 1 select the multilayer (TurboChIMES) workflow; see :ref:`page-turboChimes` and the **Multilayer (TurboChIMES) fitting** subsection later on this page (after *Hierarchical Fitting Options*).
 ``REGRESS_ALG        =``    str            N        dlasso                                                                      Regression algorithm to use for fitting; only dlasso supported for now
 ``REGRESS_VAR        =``    float          N        1e-5                                                                        Regression regularization variable.
 ``REGRESS_NRM        =``    bool           N        True                                                                        Controls whether A-matrix is normalized prior to solution.
@@ -174,6 +174,17 @@ Input variable                  Variable type   Default                 Value/Op
 ``HIERARCH_METHOD      =``      str             None                    MD method to use for subtracting existing parameter contributions - current options are CHIMES or LMP
 ``HIERARCH_EXE         =``      str             None                    Executable to use when subtracting existing parameter contributions
 =============================   =============   ====================    ============================
+
+
+------------------------------------
+Multilayer (TurboChIMES) fitting
+------------------------------------
+
+**Hierarchical** fitting (table above) partitions work across **element / cross-interaction tiles** and optional pre-fit parameter files. **Multilayer (TurboChIMES)** instead uses **multiple ChIMES functional layers** (typically short + long range) fit to the **same** reference database, controlled by ``N_HYPER_SETS`` and numbered ``fm_setup`` files (e.g. ``0.fm_setup.in``, ``1.fm_setup.in``). It does **not** use ``DO_HIERARCH`` or ``HIERARCH_PARAM_FILES``.
+
+For workflow, mathematics, directory layout, and the bundled propane example, see :ref:`page-turboChimes` (including **Fig. 2**, ``short_and_long_range_description.png``). A vector PDF is also bundled: :download:`short_and_long_range_description.pdf <short_and_long_range_description.pdf>`.
+
+**Related variable:** ``N_HYPER_SETS`` in the *ChIMES LSQ Options* table—set to the number of independent layer setups (2 for the standard two-layer Turbo example).
 
 
 =================================

@@ -1,172 +1,181 @@
 .. _page-turboChimes:
 
 ***************************************
-TurboChIMES Fitting Mode
+Multilayer (TurboChIMES) Fitting Mode
 ***************************************
 
-
 .. figure:: turbo_ChIMES.png
-  :width: 500
-  :align: center
-  
-  **Fig. 1:** The TurboChIMES fitting framework.
+   :width: 500
+   :align: center
 
+   **Fig. 1.** Schematic of the TurboChIMES / multilayer idea: short-ranged interactions are represented with a **dense** Chebyshev basis (bond rearrangements, steep repulsion), while long-ranged contributions use a **sparser** basis that varies more smoothly.
 
-TurboChIMES framework is designed to account for both short and long-range interactions effectively using a low-complexity model. This offers two major advantages which include accounting for long-range physics more effectively at relatively low complexity and computational cost. This framework has been integrated into the Active learning driver to ensure a smooth design matrix development and simulation. The figure shows how this model accounts for both short and long-range interactions separately.
+This page documents the **multilayer ChIMES** workflow as implemented in the Active Learning Driver (ALD). It is complementary to :ref:`page-basic` (single-layer iterative refinement), :ref:`page-hierarch` (element-wise parameter hierarchy and transfer), and :ref:`page-clusterAL` (cluster-based active learning). If you are deciding which mode to use: **hierarchical** fitting addresses complexity across **chemical species**; **multilayer (TurboChIMES)** addresses how much **resolution** to spend at short vs. long range for the *same* species and training set for simulation efficiency.
 
+.. figure:: short_and_long_range_description.png
+   :width: 650
+   :align: center
 
-.. **UPDATE JOURNAL** ... this would be for C/N ... try for JCTC   `(link) < UPDATE >`_
+   **Fig. 2.** Short- vs. long-range resolution in the multilayer construction (rasterized from the manuscript figure; vector PDF also available).
+
+A vector version is still provided for slides or print: :download:`short_and_long_range_description.pdf <short_and_long_range_description.pdf>`.
+
+-------
+
+====================================
+Motivation and mathematical overview
+====================================
+
+Machine-learned interatomic potentials (ML-IAPs) can achieve near–quantum accuracy for covalently bonded systems, but their **computational cost** scales with the richness of the basis used everywhere in space. A natural design choice is how to distribute that resolution across **distance**: short range is where bond rearrangement and strong repulsion dominate, while longer-range forces vary more smoothly.
+
+The **multilayer ChIMES** representation uses a **dense** basis for short-ranged interactions and a **sparser** basis for longer-ranged contributions, implemented within the ChIMES ML-IAP framework. In studies on reactive and non-reactive molecular fluids over broad thermodynamic conditions, this strategy **preserves accuracy** while **reducing evaluation cost** relative to a conventional single-layer construction—including order-of-magnitude speedups for representative systems.
+
+**Two-layer construction (short + long).** The user specifies ChIMES hyperparameters **independently** for each layer: in particular, maximum **bodiedness**, maximum **polynomial orders** (:math:`\mathcal{O}_{n\mathrm{B}}`), and **outer cutoffs** :math:`r_{\mathrm{cut}}`. ChIMES LSQ then builds a design matrix **per layer**, :math:`\mathbf{M}_{\mathrm{short}}` and :math:`\mathbf{M}_{\mathrm{long}}`, with the **same** number of rows (one per constraint row derived from the reference data :math:`\mathbf{X}_{\mathrm{DFT}}`) but **different** numbers of columns when the two layers use different bodiedness / polynomial orders. The matrices are **concatenated horizontally** and the combined linear system is solved in weighted least-squares form:
+
+.. math::
+   :label: eq-turbo-design
+
+   \mathbf{w}
+   \left[\mathbf{M}_{\mathrm{short}}\ \mathbf{M}_{\mathrm{long}}\right]
+   \begin{bmatrix}
+   \mathbf{c}_{\mathrm{short}} \\ \mathbf{c}_{\mathrm{long}}
+   \end{bmatrix}
+   =
+   \mathbf{w}\,\mathbf{X}_{\mathrm{DFT}}
+
+Here :math:`\mathbf{w}` denotes the usual weighting of rows (forces, energies, stresses, etc., as in standard ChIMES LSQ). The coefficient blocks :math:`\mathbf{c}_{\mathrm{short}}` and :math:`\mathbf{c}_{\mathrm{long}}` are the **separate** parameters for the short- and long-ranged layers. At **run time**, LAMMPS evaluates the two ChIMES pair contributions and combines them (e.g. via ``hybrid/overlay`` style pair interactions), as produced by the ALD/ChIMES tool chain.
+
+For the relationship between ``N_HYPER_SETS``, ``fm_setup`` files, and driver behavior, see also :ref:`page-options` (ChIMES LSQ and **Multilayer** subsection).
 
 -------
 
 ============================
-Example Fit: Propane system
+Example fit: Propane system
 ============================
 
+.. Note::
 
-.. Note ::
+   Example files live under:
 
-    Files for this example are located in ``./<al_driver base folder>/examples/simple_iter_single_statepoint-lmp-test-turbo-test``
-    
-In this section, an example 3-iteration fit for propane. The example allows us to look at the short-range effect within a propane molecule and the long-range Van der Waal effect between different propane molecules within the simulation box.
+   ``<al_driver repository>/examples/simple_iter_single_statepoint-lmp-test-turbo-test``
 
+This example illustrates an iterative fit for **united-atom propane** (:math:`\texttt{C1}`, :math:`\texttt{C2}` labels in the force field). It highlights **intra-molecular** (short-ranged) structure within each propane unit and **inter-molecular** (longer-ranged) van der Waals interactions between molecules in the box. Reference data for this bundled example use **LAMMPS** as the “QM” reference method (``BULK_QM_METHOD = "LMP"``), so you must supply both **ChIMES MD** templates and **classical reference** LAMMPS inputs (see below).
 
-The necessary input files and directory tree structure are provided in the example folder, i.e.:
+------------------------------------------
+Directory layout (relative to the example)
+------------------------------------------
 
-.. code-block :: 
-    :emphasize-lines: 4,14-16
+Compared with :ref:`page-basic`, the ``ALC-0_BASEFILES`` area contains **two** numbered setup files instead of a single ``fm_setup.in``. The ``LMPMD_BASEFILES`` and ``LMP_BASEFILES`` directories supply ChIMES fitting MD and reference LAMMPS jobs, respectively.
 
-    $: tree 
-    .
-    ALL_BASE_FILES/
-    --- ALC-0_BASEFILES
-    ------ 0.fm_setup.in
-    ------ 1.fm_setup.in
-    ------ test_data.xyzf
-    ------ traj_list.dat
-    --- LMP_BASEFILES
-    ------ 1.data.in
-    ------ 1.in.lammps
-    --- LMPMD_BASEFILES
-    ------ bonds.dat
-    ------ case-0.indep-0.data.in
-    ------ case-0.indep-0.in.lammps
-    ------ ase-0.skip.dat
+.. code-block:: text
+   :emphasize-lines: 4,14-16
 
+   ALL_BASE_FILES/
+   ├── ALC-0_BASEFILES/
+   │   ├── 0.fm_setup.in          # short-range hyperparameters / cutoffs
+   │   ├── 1.fm_setup.in          # long-range hyperparameters / cutoffs
+   │   ├── test_data.xyzf
+   │   └── traj_list.dat
+   ├── LMP_BASEFILES/
+   │   ├── 1.data.in
+   │   └── 1.in.lammps
+   └── LMPMD_BASEFILES/
+       ├── bonds.dat
+       ├── case-0.indep-0.data.in
+       ├── case-0.indep-0.in.lammps
+       └── case-0.skip.dat
 
-    
-Compared with the ``ALC-0_BASEFILES`` folder provided in the:ref:`page-basic`, the primary difference is the ``LMPMD_BASEFILES`` and ``LMP_BASEFILES`` directory, i.e., which contains the files required to run the LAMMPs simulation and QM respectively. Other differences include the 0.fm_setup.in includes the hyperparameters and cut_offs  for the short-range interaction while the 1.fm_setup.in includes that for the long range.
-
+**Role of ``0.fm_setup.in`` vs. ``1.fm_setup.in``.** Layer ``0`` encodes the **short-ranged** ChIMES model (typically smaller outer cutoffs and/or higher polynomial rank where the potential is stiff). Layer ``1`` encodes the **long-ranged** model (larger cutoffs and a sparser Chebyshev expansion where the potential is smoother). Your exact hyperparameter lines must be self-consistent with the ChIMES LSQ manual and the physical system.
 
 -------
 
 ------------------------------------------
-Input Files 
+Input files and ``config.py``
 ------------------------------------------
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-The config.py File
+Key ALD settings
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The `config.py` file is given below:
+The multilayer driver path is selected when ``N_HYPER_SETS`` is set to **2** (in general, to the number of independent ``*.fm_setup.in`` layers you intend to fit). With ``N_HYPER_SETS = 1``, the ALD follows :ref:`page-basic` or :ref:`page-hierarch` depending on ``DO_HIERARCH`` and related options—not this page.
 
-.. code-block :: python
-    :linenos:
-    :emphasize-lines: 55-57
-    
-    ################################
-    ##### General variables
-    ################################
+**LAMMPS is required for MD** in the Turbo workflow as shipped: the fitted potential is expressed as **two** ChIMES pair styles that LAMMPS combines (e.g. ``hybrid/overlay``). Other ``MD_STYLE`` choices are not described here.
 
-    EMAIL_ADD	  = "lindsey11@llnl.gov" # driver will send updates on the status of the current run ... If blank (""), no emails are sent
+A minimal excerpt from the example ``config.py`` (compare full file in the example directory):
 
-    ATOM_TYPES = ['C']
-    NO_CASES = 1
+.. code-block:: python
+   :linenos:
+   :emphasize-lines: 26-27
 
-    DRIVER_DIR     = "/p/lustre2/rlindsey/al_driver/src/"
-    WORKING_DIR    = "/p/lustre2/rlindsey/al_driver/examples/hierarch_fit"
-    CHIMES_SRCDIR  = "/p/lustre2/rlindsey/chimes_lsq/src/"
+   ################################
+   ##### General variables
+   ################################
 
-    ################################
-    ##### ChIMES LSQ
-    ################################
+   ATOM_TYPES = ['C']
+   NO_CASES = 1
 
-    ALC0_FILES    = WORKING_DIR + "ALL_BASE_FILES/ALC-0_BASEFILES/"
-    CHIMES_LSQ    = CHIMES_SRCDIR + "../build/chimes_lsq"
-    CHIMES_SOLVER = CHIMES_SRCDIR + "../build/chimes_lsq.py"
-    CHIMES_POSTPRC= CHIMES_SRCDIR + "../build/post_proc_chimes_lsq.py"
+   DRIVER_DIR     = "/path/to/al_driver/src/"
+   WORKING_DIR    = "/path/to/examples/simple_iter_single_statepoint-lmp-test-turbo-test/"
+   CHIMES_SRCDIR  = "/path/to/chimes_lsq/src/"
 
-    # Generic weight settings
+   ################################
+   ##### ChIMES LSQ
+   ################################
 
-    WEIGHTS_FORCE =   1.0
+   ALC0_FILES    = WORKING_DIR + "ALL_BASE_FILES/ALC-0_BASEFILES/"
+   CHIMES_LSQ    = CHIMES_SRCDIR + "../build/chimes_lsq"
+   CHIMES_SOLVER = CHIMES_SRCDIR + "../build/chimes_lsq.py"
+   CHIMES_POSTPRC= CHIMES_SRCDIR + "../build/post_proc_chimes_lsq.py"
 
-    REGRESS_ALG   = "dlasso"
-    REGRESS_VAR   = "1.0E-5"
-    REGRESS_NRM   = True
-    N_HYPER_SETS  = 2
-    # Job submitting settings (avoid defaults because they will lead to long queue times)
+   WEIGHTS_FORCE = 1.0
+   REGRESS_ALG   = "dlasso"
+   REGRESS_VAR   = "1.0E-5"
+   REGRESS_NRM   = True
+   N_HYPER_SETS  = 2
 
-    CHIMES_BUILD_NODES = 2
-    CHIMES_BUILD_QUEUE = "pdebug"
-    CHIMES_BUILD_TIME  = "01:00:00"
+   ################################
+   ##### Molecular Dynamics
+   ################################
 
-    CHIMES_SOLVE_NODES = 2
-    CHIMES_SOLVE_QUEUE = "pdebug"
-    CHIMES_SOLVE_TIME  = "01:00:00"
+   MD_STYLE        = "LMP"
+   MDFILES         = WORKING_DIR + "/ALL_BASE_FILES/LMPMD_BASEFILES/"
+   MD_MPI          = "/path/to/lmp_mpi_chimes"
+   CHIMES_MD_MPI   = MD_MPI
+   MOLANAL         = CHIMES_SRCDIR + "../contrib/molanal/src/"
+   MOLANAL_SPECIES = ["C1"]
 
-    ################################
-    ##### Molecular Dynamics
-    ################################
+   ################################
+   ##### Single-point "QM" (LAMMPS reference)
+   ################################
 
-    MD_STYLE	    = "LMP"
-    MD_QUEUE	      = ["skx"]*NO_CASES
-    MD_TIME	      = ["1:00:00"]*NO_CASES
-    CHIMES_MD_MPI     = "/work2/09982/aoladipupo/stampede3/codes/chimes_calculator-LLfork/etc/lmp/exe/lmp_mpi_chimes"
-    MD_NODES	      = [1]*NO_CASES
-    MDFILES	     = WORKING_DIR + "/ALL_BASE_FILES/LMPMD_BASEFILES/"
-    MD_MPI	      = "/work2/09982/aoladipupo/stampede3/codes/chimes_calculator-LLfork/etc/lmp/exe/lmp_mpi_chimes"
-    MOLANAL	    = CHIMES_SRCDIR + "../contrib/molanal/src/"
-    MOLANAL_SPECIES = ["C1"]
-    CHIMES_MODULES = "intel/24.0 impi/21.11 cmake/3.29.5"
-    ################################
-    ##### Single-Point QM
-    ################################
-    BULK_QM_METHOD = "LMP"
-    IGAS_QM_METHOD = "LMP" # Must be defined, even if unused
-    QM_FILES	   = WORKING_DIR + "ALL_BASE_FILES/LMP_BASEFILES"
+   BULK_QM_METHOD  = "LMP"
+   IGAS_QM_METHOD  = "LMP"
+   QM_FILES        = WORKING_DIR + "ALL_BASE_FILES/LMP_BASEFILES"
+   LMP_EXE         = "/path/to/lmp_mpi_chimes"   # must support class2 / molecular reference inputs
+   LMP_UNITS       = "REAL"
 
-    LMP_EXE	 = "/work2/09982/aoladipupo/stampede3/codes/chimes_calculator-LLfork/etc/lmp/exe/lmp_mpi_chimes" # Has class2 compiled in it
-    LMP_UNITS	 = "REAL"
-    LMP_TIME	 = "00:10:00"
-    LMP_NODES	 = 1
-    LMP_PPN	 = 1
-    LMP_MEM	 = 48
-    LMP_QUEUE	 = "skx"
-    LMP_MODULES  = "intel/24.0 impi/21.11"
-
-    
-The primary difference between the present ``config.py`` and that provided in the  file :ref:`page-basic` documentation is the N_HYPER_SETS which has to be given a value of 2 this informs ALD that he needs to use the TurboChIMES fitting framework. It is important to note that to use the TurboChIMES framework the Molecular dynamics portion of the code has to be done using LAMMPS. This is because the code is going to be generating two pair types one for short range and the other for long range LAMMPS has been designed to handle multiple pair types using the hybrid overlay pair type. If N_HYPER_SETS is set to one then the Basic or Hierarch fitting approach would be done depending if the config file HIERARCH parameter as been set to true..
-
-
-------------------------------------------
-Running
-------------------------------------------
-
-...
+Replace all paths, queues, modules, and account settings with those appropriate for your HPC environment. The reference LAMMPS job in ``LMP_BASEFILES`` uses **molecular** atom styles and **class2** angles in the bundled example; your ``LMP_EXE`` must be built with compatible packages (see :ref:`page-basic` LAMMPS discussion where applicable).
 
 -------
 
 ------------------------------------------
-Inspecting the output
+Running and inspecting output
 ------------------------------------------
 
-...
+The execution pattern matches :ref:`page-basic`:
+
+1. Edit ``config.py`` and all paths under ``ALL_BASE_FILES/``.
+2. From ``WORKING_DIR``, run the driver, e.g. ``python3 /path/to/al_driver/src/main.py 0 1 2 3`` (or your site’s wrapper), preferably inside ``screen`` or ``tmux``.
+
+Inspect ChIMES LSQ logs, fitted parameter files for **both** layers, and subsequent LAMMPS trajectories as you would for a single-layer fit. If regression fails or weights are imbalanced, revisit ``WEIGHTS_*``, ``REGRESS_VAR``, and the hyperparameters in ``0.fm_setup.in`` / ``1.fm_setup.in``.
 
 -------
 
-
 ========================================================
-In-depth Setup and Options Overview
+Further reading and cross-links
 ========================================================
 
-For detailed instructions on setting up and running the ALD, see the :ref:`page-basic`
+* **Setup and option tables:** :ref:`page-options` (including ``N_HYPER_SETS`` and the **Multilayer (TurboChIMES)** subsection immediately after hierarchical options).
+* **Single-layer baseline:** :ref:`page-basic`.
+* **Species-wise transfer (different problem):** :ref:`page-hierarch`.
+* **Cluster-based AL:** :ref:`page-clusterAL`.
