@@ -20,8 +20,8 @@ import pretty_stuff
 
 local_path = os.path.normpath(helpers.run_bash_cmnd("pwd").rstrip())
 sys.path.append(local_path)
-import config  # User-specified "global" vars
 
+import config  # User-specified "global" vars
 
 def main(args):
 
@@ -39,6 +39,8 @@ def main(args):
 
            - Run location is specified in the config file (WORKING_DIR), NOT the directory 
              it was launched from
+             
+           - If "unbuffer" command is unavailable on your system, try replacing "unuffer python" with "python -u"
     
            - This tool works most effectively when run with something like screen, tmux, or nohup 
              during remote runs (these utils allow the session to be detached/reattached)    
@@ -135,6 +137,8 @@ def main(args):
     
     verify_config.verify(config)
     
+    print(config.MD_DEBUG_MODE)
+
     print("The following has been set as the working directory:")
     print('\t', config.WORKING_DIR)
     print("The ALC-X contents of this directory will be overwritten.")
@@ -178,7 +182,20 @@ def main(args):
         config.MD_SER = config.CHIMES_MD_SER 
         
     if hasattr(config, "CHIMES_MD_MODULES") and not hasattr(config,"MD_MODULES"):
-        config.MD_MODULES = config.CHIMES_MD_MODULES         
+        config.MD_MODULES = config.CHIMES_MD_MODULES   
+	
+
+    if (config.DO_HIERARCH) and (config.HIERARCH_METHOD is None):
+        config.HIERARCH_METHOD = config.MD_STYLE
+        print("Set config.HIERARCH_METHOD to", config.MD_STYLE) 
+
+    if (config.DO_HIERARCH) and (config.HIERARCH_EXE is None):
+        try:
+            config.HIERARCH_EXE = config.MD_SER
+            print("Set config.HIERARCH_EXE to", config.MD_SER) 
+        except:
+            config.HIERARCH_EXE = config.MD_MPI 
+            print("Set config.HIERARCH_EXE to", config.MD_MPI)        
 
     ################################
     ################################
@@ -262,13 +279,15 @@ def main(args):
             
                 active_job = gen_ff.build_amat(THIS_ALC,
                         do_hierarch        = config.DO_HIERARCH,
+			hierarch_method    = config.HIERARCH_METHOD,
                         hierarch_files     = config.HIERARCH_PARAM_FILES,    
-                        hierarch_exe       = config.MD_SER,
+                        hierarch_exe       = config.HIERARCH_EXE,
                         do_correction      = config.FIT_CORRECTION,
                         correction_method  = config.CORRECTED_TYPE,
                         correction_files   = config.CORRECTED_TYPE_FILES,
                         correction_exe     = config.CORRECTED_TYPE_EXE,
-                        correction_temps   = config.CORRECTED_TEMPS_BY_FILE,                        
+                        correction_temps   = config.CORRECTED_TEMPS_BY_FILE, 
+			n_hyper_sets       = config.N_HYPER_SETS,                       
                         prev_gen_path      = config.ALC0_FILES,
                         job_email          = config.HPC_EMAIL,
                         job_ppn            = str(config.HPC_PPN),
@@ -456,10 +475,7 @@ def main(args):
                         job_executable = config.MD_SER)    
                         
                 helpers.wait_for_jobs(active_jobs, job_system = config.HPC_SYSTEM, verbose = True, job_name = "get_repo_energies")
-            
-                print(helpers.run_bash_cmnd("pwd"))
-                print(helpers.run_bash_cmnd("ls -lrt"))    
-            
+           
                 restart_controller.update_file("CLUENER_CALC: COMPLETE" + '\n')    
                 
                 helpers.email_user(config.DRIVER_DIR, EMAIL_ADD, "ALC-" + str(THIS_ALC) + " status: " + "CLUENER_CALC: COMPLETE ")
@@ -523,7 +539,7 @@ def main(args):
                         compilation    = "g++ -std=c++11 -O3",
                         basefile_dir   = config.QM_FILES,
                         VASP_exe       = config.VASP_EXE,
-                        VASP_nodes     = config.VASP_NODES,
+                        VASP_nodes     = config.VASP_NODES[THIS_CASE],
                         VASP_ppn       = config.VASP_PPN,
                         VASP_mem       = config.VASP_MEM,
                         VASP_time      = config.VASP_TIME,
@@ -537,7 +553,7 @@ def main(args):
                         DFTB_exe       = config.DFTB_EXE,    
                         DFTB_modules   = config.DFTB_MODULES,
                         CP2K_exe       = config.CP2K_EXE,
-                        CP2K_nodes     = config.CP2K_NODES,
+                        CP2K_nodes     = config.CP2K_NODES[THIS_CASE],
                         CP2K_ppn       = config.CP2K_PPN,
                         CP2K_mem       = config.CP2K_MEM,
                         CP2K_time      = config.CP2K_TIME,
@@ -717,8 +733,9 @@ def main(args):
                 
                     active_jobs = gen_ff.build_amat(THIS_ALC,
                             do_hierarch        = config.DO_HIERARCH,
+			    hierarch_method    = config.HIERARCH_METHOD,
                             hierarch_files     = config.HIERARCH_PARAM_FILES,
-                            hierarch_exe       = config.MD_SER,
+                            hierarch_exe       = config.HIERARCH_EXE,
                             do_correction      = config.FIT_CORRECTION,
                             correction_method  = config.CORRECTED_TYPE,
                             correction_files   = config.CORRECTED_TYPE_FILES,
@@ -742,8 +759,9 @@ def main(args):
                         prev_qm_all_path = qm_all_path,
                         prev_qm_20_path  = qm_20F_path,
                         do_hierarch      = config.DO_HIERARCH,
+			hierarch_method  = config.HIERARCH_METHOD,
                         hierarch_files   = config.HIERARCH_PARAM_FILES,    
-                        hierarch_exe     = config.MD_SER,
+                        hierarch_exe     = config.HIERARCH_EXE, #config.MD_SER,
                         do_correction    = config.FIT_CORRECTION,
                         correction_method= config.CORRECTED_TYPE,
                         correction_files = config.CORRECTED_TYPE_FILES,
@@ -765,7 +783,7 @@ def main(args):
                         )
             
                 if len(active_jobs) == 1:
-                    helpers.wait_for_job(active_jobs[0], job_system = config.HPC_SYSTEM, verbose = True, job_name = "build_amat")
+                    helpers.wait_for_job(active_jobs, job_system = config.HPC_SYSTEM, verbose = True, job_name = "build_amat")
                 else:
                     helpers.wait_for_jobs(active_jobs, job_system = config.HPC_SYSTEM, verbose = True, job_name = "build_amat")                    
             
@@ -834,7 +852,7 @@ def main(args):
                         job_account        = config.HPC_ACCOUNT, 
                         job_system         = config.HPC_SYSTEM,
                         job_executable     = config.CHIMES_SOLVER,
-                        job_modules        = config.CHIMES_MODULES
+                        job_modules        = config.CHIMES_LSQ_MODULES
                         )    
                     
                     helpers.wait_for_job(active_job, job_system = config.HPC_SYSTEM, verbose = True, job_name = "restart_solve_amat")
@@ -867,7 +885,7 @@ def main(args):
                         exit()
   
                     
-                if config.DO_HIERARCH and config.N_HYPER_SET == 1:
+                if config.DO_HIERARCH and config.N_HYPER_SETS == 1:
                     gen_ff.combine("GEN_FF/params.txt", config.HIERARCH_PARAM_FILES)    
                     helpers.run_bash_cmnd(config.CHIMES_POSTPRC + " hierarch.params.txt")                    
                     helpers.run_bash_cmnd("mv  hierarch.params.txt.reduced GEN_FF/params.txt.reduced")                
@@ -925,7 +943,8 @@ def main(args):
                         job_executable = config.MD_MPI,     
                         job_system     = config.HPC_SYSTEM,       
                         job_file       = "run.cmd",
-                        job_modules    = config.MD_MODULES
+                        job_modules    = config.MD_MODULES,
+                        md_debug_mode  = config.MD_DEBUG_MODE
                         )
                         
         
@@ -957,7 +976,8 @@ def main(args):
                         tight_crit     = config.TIGHT_CRIT,    
                         loose_crit     = config.LOOSE_CRIT,    
                         clu_code       = config.CLU_CODE,      
-                        compilation    = "g++ -std=c++11 -O3")
+                        compilation    = "g++ -std=c++11 -O3",
+                        run_molanal    = config.RUN_MOLANAL)
 
                 restart_controller.update_file("POST_PROC: COMPLETE" + '\n')
                 
@@ -985,18 +1005,18 @@ def main(args):
                         else:
                             cluster.list_clusters(repo, config.ATOM_TYPES)        
                 
-                            helpers.run_bash_cmnd("mv xyzlist.dat     " + "CASE-" + str(THIS_CASE) + ".xyzlist.dat"   )
-                            helpers.run_bash_cmnd("mv ts_xyzlist.dat " + "CASE-" + str(THIS_CASE) + ".ts_xyzlist.dat")
+                        helpers.run_bash_cmnd("mv xyzlist.dat     " + "CASE-" + str(THIS_CASE) + ".xyzlist.dat"   )
+                        helpers.run_bash_cmnd("mv ts_xyzlist.dat " + "CASE-" + str(THIS_CASE) + ".ts_xyzlist.dat")
                 
-                            cat_xyzlist_cmnd    += "CASE-" + str(THIS_CASE) + ".xyzlist.dat "
-                            cat_ts_xyzlist_cmnd += "CASE-" + str(THIS_CASE) + ".ts_xyzlist.dat "
-                
+                        cat_xyzlist_cmnd    += "CASE-" + str(THIS_CASE) + ".xyzlist.dat "
+                        cat_ts_xyzlist_cmnd += "CASE-" + str(THIS_CASE) + ".ts_xyzlist.dat "
+
                     helpers.cat_specific("xyzlist.dat"   , cat_xyzlist_cmnd   .split())
                     helpers.cat_specific("ts_xyzlist.dat", cat_ts_xyzlist_cmnd.split())
                 
                     helpers.run_bash_cmnd("rm -f " + cat_xyzlist_cmnd   )
                     helpers.run_bash_cmnd("rm -f " + cat_ts_xyzlist_cmnd)
-                    
+
                     restart_controller.update_file("CLUSTER_EXTRACTION: COMPLETE" + '\n')    
                     
                     helpers.email_user(config.DRIVER_DIR, EMAIL_ADD, "ALC-" + str(THIS_ALC) + " status: " + "CLUSTER_EXTRACTION: COMPLETE ")                
@@ -1094,7 +1114,7 @@ def main(args):
                         compilation    = "g++ -std=c++11 -O3",
                         basefile_dir   = config.QM_FILES,
                         VASP_exe       = config.VASP_EXE,
-                        VASP_nodes     = config.VASP_NODES,
+                        VASP_nodes     = config.VASP_NODES[THIS_CASE],
                         VASP_ppn       = config.VASP_PPN,
                         VASP_mem       = config.VASP_MEM,
                         VASP_time      = config.VASP_TIME,
@@ -1108,7 +1128,7 @@ def main(args):
                         DFTB_modules   = config.DFTB_MODULES,
                         DFTB_queue     = config.DFTB_QUEUE,
                         CP2K_exe       = config.CP2K_EXE,
-                        CP2K_nodes     = config.CP2K_NODES,
+                        CP2K_nodes     = config.CP2K_NODES[THIS_CASE],
                         CP2K_ppn       = config.CP2K_PPN,
                         CP2K_mem       = config.CP2K_MEM,
                         CP2K_time      = config.CP2K_TIME,
@@ -1192,7 +1212,8 @@ def main(args):
                 
                         for THIS_CASE in range(config.NO_CASES):
 
-                            active_jobs = qm_driver.continue_job(config.BULK_QM_METHOD, config.IGAS_QM_METHOD, tasks, THIS_CASE,
+                            # FIXED
+                            active_job = qm_driver.continue_job(config.BULK_QM_METHOD, config.IGAS_QM_METHOD, tasks, THIS_CASE,
                                 job_system = config.HPC_SYSTEM)
                                     
                             active_jobs += active_job

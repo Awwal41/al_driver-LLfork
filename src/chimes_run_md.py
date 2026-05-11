@@ -42,8 +42,8 @@ def post_proc(my_ALC, my_case, my_indep, *argv, **kwargs):
     
     ### ...kwargs
     
-    default_keys   = [""]*11
-    default_values = [""]*11
+    default_keys   = [""]*12
+    default_values = [""]*12
 
 
     # MD specific controls
@@ -62,6 +62,7 @@ def post_proc(my_ALC, my_case, my_indep, *argv, **kwargs):
     default_keys[8 ] = "loose_crit"  ; default_values[8 ] = "../../../../loose_bond_crit.dat"                            # File with loose bonding criteria for clustering
     default_keys[9 ] = "clu_code"     ; default_values[9 ] = "/p/lscratchrza/rlindsey/RC4B_RAG/11-12-18/new_ts_clu.cpp"  # Clustering code
     default_keys[10] = "compilation" ; default_values[10] = "g++ -std=c++11 -O3"                                         # Command to compile clustering code
+    default_keys[11] = "run_molanal" ; default_values[11] = False              
     
     args = dict(list(zip(default_keys, default_values)))
     args.update(kwargs)
@@ -77,17 +78,19 @@ def post_proc(my_ALC, my_case, my_indep, *argv, **kwargs):
     ################################
     # 1. Run molanal
     ################################
-    
-    if os.path.isfile(args["basefile_dir"] + "case-" + str(my_case) + ".skip.dat"):
-    
-        helpers.run_bash_cmnd("cp " + args["basefile_dir"] + "case-" + str(my_case) + ".skip.dat skip.dat")
-    
-    
-    helpers.run_bash_cmnd_to_file("traj.gen-molanal.out",args["molanal_dir"] + "/molanal.new traj.gen")
-    helpers.run_bash_cmnd_to_file("traj.gen-find_molecs.out", args["molanal_dir"] + "/findmolecules.pl traj.gen-molanal.out")
-    helpers.run_bash_cmnd("rm -rf molecules " + ' '.join(glob.glob("molanal*")))
-    
-    print(helpers.run_bash_cmnd_presplit([args["local_python"], args["driver_dir"] + "/src/post_process_molanal.py"] + args_species))
+    if args["run_molanal"]:
+        if os.path.isfile(args["basefile_dir"] + "case-" + str(my_case) + ".skip.dat"):
+
+            helpers.run_bash_cmnd("cp " + args["basefile_dir"] + "case-" + str(my_case) + ".skip.dat skip.dat")
+
+
+        helpers.run_bash_cmnd_to_file("traj.gen-molanal.out",args["molanal_dir"] + "/molanal.new traj.gen")
+        helpers.run_bash_cmnd_to_file("traj.gen-find_molecs.out", args["molanal_dir"] + "/findmolecules.pl traj.gen-molanal.out")
+        helpers.run_bash_cmnd("rm -rf molecules " + ' '.join(glob.glob("molanal*")))
+
+        print(helpers.run_bash_cmnd_presplit([args["local_python"], args["driver_dir"] + "/src/post_process_molanal.py"] + args_species))
+    else:
+        print("Skipping MOLANAL")
     
     ################################
     # 2. Cluster
@@ -141,16 +144,16 @@ def run_md(my_ALC, my_case, my_indep, *argv, **kwargs):
     
     ### ...kwargs
     
-    default_keys   = [""]*16
-    default_values = [""]*16
+    default_keys   = [""]*17
+    default_values = [""]*17
 
     # MD specific controls
 
-    default_keys[0 ] = "basefile_dir"  ; default_values[0 ] = "../CHIMES-MD_BASEFILES/"    # Directory containing run_md.base, etc.
-    default_keys[1 ] = "driver_dir"    ; default_values[1 ] = ""                           # Post_proc_lsq*py file... should also include the python command
-    default_keys[2 ] = "penalty_pref"  ; default_values[2 ] = 1.0E6                        # Penalty function pre-factor
-    default_keys[3 ] = "penalty_dist"  ; default_values[3 ] = 0.02                         # Pentaly function kick-in distance
-    default_keys[4 ] = "chimes_exe  "  ; default_values[4 ] = None                         # Unused by this function
+    default_keys[0 ] = "basefile_dir"  ; default_values[0 ] = "../CHIMES-MD_BASEFILES/"      # Directory containing run_md.base, etc.
+    default_keys[1 ] = "driver_dir"    ; default_values[1 ] = ""                             # Post_proc_lsq*py file... should also include the python command
+    default_keys[2 ] = "penalty_pref"  ; default_values[2 ] = 1.0E6                          # Penalty function pre-factor
+    default_keys[3 ] = "penalty_dist"  ; default_values[3 ] = 0.02                           # Pentaly function kick-in distance
+    default_keys[4 ] = "chimes_exe  "  ; default_values[4 ] = None                           # Unused by this function
     
     # Overall job controls
 
@@ -165,6 +168,7 @@ def run_md(my_ALC, my_case, my_indep, *argv, **kwargs):
     default_keys[13] = "job_file"      ; default_values[13] = "run.cmd"                      # Name of the resulting submit script
     default_keys[14] = "job_email"     ; default_values[14] = True                           # Send slurm emails?
     default_keys[15] = "job_modules"   ; default_values[15] = ""                             # Send slurm emails?
+    default_keys[16] = "md_debug_mode" ; default_values[16] = False                          # Random seed or debug mode
 
 
     args = dict(list(zip(default_keys, default_values)))
@@ -239,7 +243,11 @@ def run_md(my_ALC, my_case, my_indep, *argv, **kwargs):
     
         if found1:
             #ofstream.write('\t' + str(1+my_indep) + str(1+my_indep) + str(1+my_indep) + str(1+my_indep) + '\n')
-            ofstream.write('\t' + str(random.randint(0,9999)) + '\n')
+            if not args["md_debug_mode"]: # If NOT in debug mode...
+                # Overwrite the seed with a random one
+                ofstream.write('\t' + str(random.randint(0,9999)) + '\n')
+            else: # If in debug mode, write the original line back
+                ofstream.write(runfile[i])
             found1 = False
         elif found2:
             ofstream.write('\t' + md_xyzfile + '\n')
@@ -274,7 +282,7 @@ def run_md(my_ALC, my_case, my_indep, *argv, **kwargs):
     
     job_task  = "-n " + repr(int(args["job_nodes"])*int(args["job_ppn"])) + " " +  args["job_executable"] + " " + md_infile + " > run_md.out"    
     
-    if args["job_system"]  == "slurm":
+    if (args["job_system"] == "slurm" or args["job_system"] == "UM-ARC"):
         job_task = "srun "   + job_task
     elif args["job_system"] == "TACC":
         job_task = "ibrun "  + job_task
