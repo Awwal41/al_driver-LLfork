@@ -4,7 +4,7 @@
 Multilayer (TurboChIMES) Fitting Mode
 ***************************************
 
-.. figure:: turbo_ChIMES.png
+.. figure:: short_and_long_range_description.png
    :width: 250
    :align: center
 
