@@ -175,7 +175,7 @@ Running and inspecting output
 The execution pattern matches :ref:`page-basic`:
 
 1. Edit ``config.py`` and all paths under ``ALL_BASE_FILES/``.
-2. From ``WORKING_DIR``, run the driver, e.g. ``python3 /path/to/al_driver/src/main.py 0 1 2 3`` (or your site’s wrapper), preferably inside ``screen`` or ``tmux``.
+2. From ``WORKING_DIR``, run the driver, e.g. ``python3 -u /path/to/al_driver/src/main.py 0 1 2 3`` (or your site’s wrapper), preferably inside ``screen`` or ``tmux``.
 
 Inspect ChIMES LSQ logs, fitted parameter files for both layers, and subsequent LAMMPS trajectories as you would for a single-layer fit. If regression fails or weights are imbalanced, revisit ``WEIGHTS_*``, ``REGRESS_VAR``, and the hyperparameters in ``0.fm_setup.in`` / ``1.fm_setup.in``.
 
