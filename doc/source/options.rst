@@ -180,7 +180,7 @@ Input variable                  Variable type   Default                 Value/Op
 Multilayer (TurboChIMES) Fitting Options
 ============================
 
-Multilayer (TurboChIMES) fitting uses multiple ChIMES functional layers—typically a short-range layer and a long-range layer—trained simultaneously on the same reference database. This approach does not use DO_HIERARCH or HIERARCH_PARAM_FILES. The number of layers is controlled by N_HYPER_SETS and implemented through numbered fm_setup.in files (e.g. 0.fm_setup.in, 1.fm_setup.in). Where as, hierarchical fitting (table above) partitions work across element / cross-interaction tiles and optional pre-fit parameter files. Hence, Multilayer (TurboChIMES) does not use ``DO_HIERARCH`` or ``HIERARCH_PARAM_FILES``.For workflow, mathematics, directory layout, and example files, see :ref:`page-turboChimes`.
+Multilayer (TurboChIMES) fitting uses multiple ChIMES functional layers, typically a short-range layer and a long-range layer, trained simultaneously on the same reference database. The number of layers is controlled by N_HYPER_SETS and implemented through numbered fm_setup.in files (e.g. 0.fm_setup.in, 1.fm_setup.in). Where as, hierarchical fitting (table above) partitions work across element / cross-interaction tiles and optional pre-fit parameter files. Hence, Multilayer (TurboChIMES) does not use ``DO_HIERARCH`` or ``HIERARCH_PARAM_FILES``.For workflow, mathematics, directory layout, and example files, see :ref:`page-turboChimes`.
 
 
 =================================
