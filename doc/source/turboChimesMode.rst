@@ -188,7 +188,7 @@ Input files and ``config.py``
 Key ALD settings
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Set ``N_HYPER_SETS`` to the number of independent ``*.fm_setup.in`` layers you intend to fit (2 for the standard short + long propane example). The ALD then builds, solves, and post-processes that many layer-specific design matrices and parameter files on every fitting cycle.
+Set ``N_HYPER_SETS`` to the number of independent ``*.fm_setup.in`` layers you intend to fit (2 for the standard short + long propane example), the default value is 1. The ALD then builds, solves, and post-processes that many layer-specific design matrices and parameter files on every fitting cycle.
 
 Multilayer TurboChIMES requires LAMMPS as the MD driver. Set ``MD_STYLE = "LMP"`` and point ``MD_MPI`` / ``CHIMES_MD_MPI`` at a LAMMPS executable built with the ChIMES calculator. The fitted potential is expressed as multiple ``chimesFF`` instances combined with ``hybrid/overlay``. Do not use other ``MD_STYLE`` settings for multilayer fits in the ALD as shipped.
 
