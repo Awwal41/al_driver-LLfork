@@ -17,24 +17,36 @@ This page documents the multilayer ChIMES (TurboChIMES) workflow as implemented 
 -------
 
 ====================================
-Motivation and mathematical overview
+Motivation
 ====================================
 
-Covalently bonded fluids and molecular materials combine stiff short-ranged bonded interactions, many-body correlations in the first coordination shell, and smoother longer-ranged non-bonded forces. Machine-learned interatomic potentials (ML-IAPs) are often trained to represent all of these contributions in a single unified model. Consequently, necessary basis set completeness has been governed by featuredness of short-range/bonded interactions, while interaction range has been governed by relatively smooth mid-to-long-range/non-bonded interactions; see Fig. 1. However, these systems could be more efficiently described by simultaneously learning two overlaid ML-IAPs: one that is short ranged and described through many basis functions, and another that is relatively longer ranged and requires fewer. The result would be models that exhibit the same accuracy as those developed through the single-layer strategy, while exhibiting greater computational efficiency due to the lower overall number of basis functions needed. This page details how this strategy is realized within the context of the ChIMES ML-IAP workflow in the Active Learning Driver. For the method and benchmarks, see the multilayer ChIMES manuscript `(link forthcoming) <https://arxiv.org/abs/TBD>`_.
+Machine-learned interatomic potentials (ML-IAPs) have become an important tool for accelerating atomistic simulation and materials modeling. By serving as efficient surrogates for quantum-based methods, ML-IAPs enable simulations at spatiotemporal scales far beyond those accessible with direct electronic structure calculations.
 
-Multilayer ChIMES requires tuning maximum polynomial orders for both the short- and long-range layers, as well as specification of the short-range outer cutoff. Based on this study, we establish the following heuristic guidelines:
+Despite these advances, ML-IAPs still face important challenges, including difficulty accurately representing long-range interactions and computational costs that remain significantly higher than those of classical force fields. These limitations can make the large-scale simulations required to study complex materials phenomena computationally prohibitive.
 
-1. :math:`r_{\mathrm{cut,short}}` can be selected based on inspection of the ground-truth radial distribution function (RDF).
-2. Optimal polynomial orders can be substantially lower than what is typically used for single-layer models; in representative fits, average short-range orders were about half those used for a comparable single-layer ChIMES model.
-3. Optimal long-range orders are generally lower than those for the short-range layer; in many tests, a practical long-range starting point was :math:`\mathcal{O}_{\mathrm{2B,long}} = 4` with higher-body long-range orders set to zero.
-4. :math:`\mathcal{O}_{\mathrm{2B,short}}` and :math:`\mathcal{O}_{\mathrm{3B,short}}` can be optimized independently of :math:`r_{\mathrm{cut,short}}`, :math:`\mathcal{O}_{\mathrm{2B,long}}`, and :math:`\mathcal{O}_{\mathrm{3B,long}}`.
-5. :math:`r_{\mathrm{cut,short}}` can be optimized independently of any polynomial order.
+This work revisits a fundamental design choice in ML-IAP construction for covalently bonded systems: how model resolution is distributed across the interaction range.
 
-For the multilayer water model, different :math:`r_{\mathrm{cut,short}}` values were used for each atom-pair type. The values were taken as the location of the first minimum in the ground-truth 300 K RDF after the last bonded peak. In ``fm_setup.in``, set these as pair-specific ``S_MAXIM`` values in the short-range layer file (layer ``0`` in the bundled examples). The long-range layer then extends to the full non-bonded outer cutoff on the corresponding ``PAIRIDX`` rows.
+Conventional ML-IAPs are typically trained as a single unified model that simultaneously captures highly structured short-range interactions and smoother mid- to long-range interactions. As a result, the overall model complexity is largely dictated by the short-range physics, even though the longer-range contributions are comparatively smooth; see Fig. 1. This coupling can produce unnecessarily large and computationally expensive models.
 
-Hyperparameters in each numbered ``fm_setup.in`` should follow the guidance provided in the `ChIMES LSQ manual <https://chimes-lsq.readthedocs.io/en/latest/index.html>`_ and be reasonable for describing your target physical system. As a starting point for a two-layer fit, use higher 2- and 3-body orders with shorter ``S_MAXIM`` in the short-range file and lower orders with longer ``S_MAXIM`` in the long-range file, then adjust using the guidelines above and validation on forces, energies, and structural observables.
+The multilayer (TurboChIMES) approach instead decomposes the interaction space into multiple overlaid ML-IAP layers. In the standard two-layer formulation, one layer is short-ranged and represented with a dense, high-resolution basis, while the second layer is longer-ranged and represented with a smaller, lower-resolution basis. By allocating model complexity according to the underlying physics, this strategy aims to retain the accuracy of conventional single-layer ML-IAPs while reducing the total number of basis functions required, thereby improving computational efficiency.
 
-Two-layer construction (short + long). The user specifies ChIMES hyperparameters independently for each layer: in particular, maximum bodiedness, maximum polynomial orders (:math:`\mathcal{O}_{n\mathrm{B}}`), and outer cutoffs :math:`r_{\mathrm{cut}}`. ChIMES LSQ then builds a design matrix per layer, :math:`\mathbf{M}_{\mathrm{short}}` and :math:`\mathbf{M}_{\mathrm{long}}`, with the same number of rows (one per constraint row derived from the reference data :math:`\mathbf{X}_{\mathrm{DFT}}`) but different numbers of columns when the two layers use different bodiedness / polynomial orders. The matrices are concatenated horizontally and the combined linear system is solved in weighted least-squares form:
+The following sections describe the multilayer workflow, mathematical formulation, configuration, and example usage within the Active Learning Driver. Additional methodological details and benchmark results are provided in the multilayer ChIMES manuscript `(link forthcoming) <https://arxiv.org/abs/TBD>`_.
+
+-------
+
+====================================
+Multilayer construction
+====================================
+
+Two-layer construction (short + long). The user specifies ChIMES hyperparameters independently for each layer, including:
+
+* maximum bodiedness,
+* maximum polynomial orders (:math:`\mathcal{O}_{n\mathrm{B}}`),
+* and outer cutoffs :math:`r_{\mathrm{cut}}`.
+
+ChIMES LSQ then builds one design matrix per layer, :math:`\mathbf{M}_{\mathrm{short}}` and :math:`\mathbf{M}_{\mathrm{long}}`, using the same reference data :math:`\mathbf{X}_{\mathrm{DFT}}`. The matrices share the same number of rows but may differ in the number of columns if the layers use different polynomial orders or bodiedness.
+
+The matrices are concatenated horizontally and solved simultaneously in weighted least-squares form:
 
 .. math::
    :label: eq-turbo-design
@@ -42,14 +54,77 @@ Two-layer construction (short + long). The user specifies ChIMES hyperparameters
    \mathbf{w}
    \left[\mathbf{M}_{\mathrm{short}}\ \mathbf{M}_{\mathrm{long}}\right]
    \begin{bmatrix}
-   \mathbf{c}_{\mathrm{short}} \\ \mathbf{c}_{\mathrm{long}}
+   \mathbf{c}_{\mathrm{short}} \\
+   \mathbf{c}_{\mathrm{long}}
    \end{bmatrix}
    =
    \mathbf{w}\,\mathbf{X}_{\mathrm{DFT}}
 
-Here :math:`\mathbf{w}` denotes the usual weighting of rows (forces, energies, stresses, etc., as in standard ChIMES LSQ). The coefficient blocks :math:`\mathbf{c}_{\mathrm{short}}` and :math:`\mathbf{c}_{\mathrm{long}}` are the separate parameters for the short- and long-ranged layers. At run time, LAMMPS evaluates the two ChIMES pair contributions and combines them through ``hybrid/overlay``, as produced by the ALD/ChIMES tool chain.
+Here :math:`\mathbf{w}` denotes the standard weighting of forces, energies, stresses, and other fitting quantities used in ChIMES LSQ. The coefficient blocks :math:`\mathbf{c}_{\mathrm{short}}` and :math:`\mathbf{c}_{\mathrm{long}}` correspond to the independently learned short- and long-range layers.
 
-For multilayer fits, set ``REGRESS_ALG = "dlasso"`` in ``config.py``. In practice, ``dlasso`` has been more reliable than SVD-based solvers for these design matrices because strong covariance among columns can cause SVD to discard coefficients that remain important for accurate forces and energies.
+At run time, LAMMPS evaluates the individual ChIMES contributions and combines them using ``hybrid/overlay``, as generated by the ALD/ChIMES workflow.
+
+-------
+
+====================================
+Practical hyperparameter guidance
+====================================
+
+Multilayer ChIMES introduces several additional hyperparameters, including the polynomial orders for each layer and the short-range outer cutoff.
+
+Based on this study, the following heuristic guidelines were found to be useful:
+
+1. :math:`r_{\mathrm{cut,short}}` can often be selected from the ground-truth radial distribution function (RDF), typically near the minimum after the final bonded peak.
+2. Optimal polynomial orders are often substantially lower than those used in comparable single-layer models.
+3. Long-range polynomial orders are generally lower than those used for the short-range layer.
+4. :math:`\mathcal{O}_{\mathrm{2B,short}}` and :math:`\mathcal{O}_{\mathrm{3B,short}}` can typically be optimized independently of the long-range orders.
+5. :math:`r_{\mathrm{cut,short}}` can often be optimized independently of the polynomial orders.
+
+You may use different :math:`r_{\mathrm{cut,short}}` values for each atom-pair type. In practice, a useful starting point is the minimum in the RDF following the final bonded peak for the state point of interest.
+
+In ``fm_setup.in``, these are specified through pair-specific ``S_MAXIM`` values in the short-range layer file (layer ``0`` in the bundled examples). The long-range layer then extends to the full non-bonded cutoff on the corresponding ``PAIRIDX`` rows.
+
+Hyperparameters in each numbered ``fm_setup.in`` file should follow the guidance provided in the `ChIMES LSQ manual <https://chimes-lsq.readthedocs.io/en/latest/index.html>`_ and remain physically reasonable for the target system.
+
+For the short-range layer, a typical starting point is:
+
+* :math:`\mathcal{O}_{\mathrm{2B,short}} = 6`
+* :math:`\mathcal{O}_{\mathrm{3B,short}} = 5`
+* :math:`\mathcal{O}_{\mathrm{4B,short}} = 3`
+
+For the long-range layer, lower polynomial orders with larger ``S_MAXIM`` values are generally preferred. A practical starting point in many systems is:
+
+* :math:`\mathcal{O}_{\mathrm{2B,long}} = 4`
+* higher-body long-range orders set to zero.
+
+Final hyperparameters should be validated against forces, energies, and structural observables.
+
+-------
+
+====================================
+Implementation notes
+====================================
+
+Multilayer TurboChIMES in the ALD currently requires LAMMPS for production MD.
+
+Set:
+
+.. code-block:: python
+
+   MD_STYLE = "LMP"
+
+and use a LAMMPS build that includes the ChIMES calculator.
+
+Other MD drivers supported elsewhere in the ALD (for example, standalone ChIMES MD) are not currently supported for multilayer workflows.
+
+For multilayer fitting, set:
+
+.. code-block:: python
+
+   REGRESS_ALG = "dlasso"
+   REGRESS_NRM = False
+
+In practice, ``dlasso`` has been more reliable than SVD-based solvers for multilayer design matrices because strong covariance among columns can cause SVD truncation to remove coefficients that remain important for accurately reproducing forces and energies. For the same reason, do not normalize the design matrix during the solve; set ``REGRESS_NRM = False`` in ``config.py``.
 
 -------
 
@@ -115,7 +190,7 @@ Key ALD settings
 
 Set ``N_HYPER_SETS`` to the number of independent ``*.fm_setup.in`` layers you intend to fit (2 for the standard short + long propane example). The ALD then builds, solves, and post-processes that many layer-specific design matrices and parameter files on every fitting cycle.
 
-Multilayer TurboChIMES requires LAMMPS as the MD driver. Set ``MD_STYLE = "LMP"`` and point ``MD_MPI`` / ``CHIMES_MD_MPI`` at a LAMMPS executable built with the ChIMES calculator. The fitted potential is expressed as multiple ``chimesFF`` instances combined with ``hybrid/overlay``.
+Multilayer TurboChIMES requires LAMMPS as the MD driver. Set ``MD_STYLE = "LMP"`` and point ``MD_MPI`` / ``CHIMES_MD_MPI`` at a LAMMPS executable built with the ChIMES calculator. The fitted potential is expressed as multiple ``chimesFF`` instances combined with ``hybrid/overlay``. Do not use other ``MD_STYLE`` settings for multilayer fits in the ALD as shipped.
 
 A minimal excerpt from the example ``config.py`` (compare full file in the example directory):
 
@@ -146,7 +221,7 @@ A minimal excerpt from the example ``config.py`` (compare full file in the examp
    WEIGHTS_FORCE = 1.0
    REGRESS_ALG   = "dlasso"
    REGRESS_VAR   = "1.0E-5"
-   REGRESS_NRM   = True
+   REGRESS_NRM   = False
    N_HYPER_SETS  = 2
 
    ################################
