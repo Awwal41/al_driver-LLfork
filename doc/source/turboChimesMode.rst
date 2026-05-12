@@ -20,13 +20,7 @@ This page documents the multilayer ChIMES (TurboChIMES) workflow as implemented 
 Motivation
 ====================================
 
-Machine-learned interatomic potentials (ML-IAPs) have become an important tool for accelerating atomistic simulation and materials modeling. By serving as efficient surrogates for quantum-based methods, ML-IAPs enable simulations at spatiotemporal scales far beyond those accessible with direct electronic structure calculations.
-
-Despite these advances, ML-IAPs still face important challenges, including difficulty accurately representing long-range interactions and computational costs that remain significantly higher than those of classical force fields. These limitations can make the large-scale simulations required to study complex materials phenomena computationally prohibitive.
-
-This work revisits a fundamental design choice in ML-IAP construction for covalently bonded systems: how model resolution is distributed across the interaction range.
-
-Conventional ML-IAPs are typically trained as a single unified model that simultaneously captures highly structured short-range interactions and smoother mid- to long-range interactions. As a result, the overall model complexity is largely dictated by the short-range physics, even though the longer-range contributions are comparatively smooth; see Fig. 1. This coupling can produce unnecessarily large and computationally expensive models.
+Conventional ML-IAPs are typically trained as a single unified model that simultaneously captures highly structured short-range interactions and smoother mid- to long-range interactions. As a result, the necessary model complexity is largely dictated by the short-range physics, even though the longer-range contributions are comparatively smooth, while model cutoff is dictated by the long-range interactions; see Fig. 1. This coupling can produce unnecessarily large and computationally expensive models.
 
 The multilayer (TurboChIMES) approach instead decomposes the interaction space into multiple overlaid ML-IAP layers. In the standard two-layer formulation, one layer is short-ranged and represented with a dense, high-resolution basis, while the second layer is longer-ranged and represented with a smaller, lower-resolution basis. By allocating model complexity according to the underlying physics, this strategy aims to retain the accuracy of conventional single-layer ML-IAPs while reducing the total number of basis functions required, thereby improving computational efficiency.
 
