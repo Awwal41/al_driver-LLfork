@@ -62,7 +62,7 @@ Input variable              Variable type  Required Default                     
 ``CHIMES_SOLVE_PPN   =``    int            Y        ``HPC_PPN``                                                                 Number of procs per node to use when running dlasso
 ``CHIMES_SOLVE_QUEUE =``    str            Y        pbatch                                                                      Queue to submit the dlasso job to
 ``CHIMES_SOLVE_TIME  =``    str            Y        "04:00:00"                                                                  Walltime for dlasso job
-``N_HYPER_SETS  =``         int            N        1                                                                           Number of independent ChIMES layer setups (numbered ``*.fm_setup.in`` files). Defaults to 1 when omitted from ``config.py``. Values greater than 1 select the multilayer (TurboChIMES) workflow; see :ref:`page-turboChimes`.
+``N_HYPER_SETS  =``         int            N        1                                                                           Number of independent ChIMES layers to create. If N is 1, a standard (single-layer) ChIMES model will be generated. If N is greater than 1, a multilayer model is generated, and a separate fm_setup.in file is needed for each layer (e.g., 0.fm_setup.in, 1.fm_setup.in, ...). For additional details on the multilayer ChIMES method and workflow, ; see :ref:`page-turboChimes`.
 ``REGRESS_ALG        =``    str            N        dlasso                                                                      Regression algorithm to use for fitting; only dlasso supported for now
 ``REGRESS_VAR        =``    float          N        1e-5                                                                        Regression regularization variable.
 ``REGRESS_NRM        =``    bool           N        True                                                                        Controls whether A-matrix is normalized prior to solution.
@@ -180,7 +180,7 @@ Input variable                  Variable type   Default                 Value/Op
 Multilayer (TurboChIMES) Fitting Options
 ============================
 
-Multilayer fitting learns multiple ChIMES functional layers (typically short and long range) from the same reference database using ``N_HYPER_SETS`` and numbered ``fm_setup`` files (for example, ``0.fm_setup.in`` and ``1.fm_setup.in``). For workflow, mathematics, directory layout, and the bundled propane example, see :ref:`page-turboChimes`.
+Multilayer (TurboChIMES) fitting uses multiple ChIMES functional layers—typically a short-range layer and a long-range layer—trained simultaneously on the same reference database. This approach does not use DO_HIERARCH or HIERARCH_PARAM_FILES. The number of layers is controlled by N_HYPER_SETS and implemented through numbered fm_setup.in files (e.g. 0.fm_setup.in, 1.fm_setup.in). Where as, hierarchical fitting (table above) partitions work across element / cross-interaction tiles and optional pre-fit parameter files. Hence, Multilayer (TurboChIMES) does not use ``DO_HIERARCH`` or ``HIERARCH_PARAM_FILES``.For workflow, mathematics, directory layout, and example files, see :ref:`page-turboChimes`.
 
 
 =================================
