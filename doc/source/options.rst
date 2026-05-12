@@ -176,13 +176,11 @@ Input variable                  Variable type   Default                 Value/Op
 =============================   =============   ====================    ============================
 
 
-------------------------------------
-Multilayer (TurboChIMES) fitting
-------------------------------------
+============================
+Multilayer (TurboChIMES) Fitting Options
+============================
 
-Whereas hierarchical fitting decomposes models into different element cluster contributions, multilayer fitting learns multiple ChIMES functional layers (typically short and long range) from the same reference database using ``N_HYPER_SETS`` and numbered ``fm_setup`` files (for example, ``0.fm_setup.in`` and ``1.fm_setup.in``).
-
-For workflow, mathematics, directory layout, and the bundled propane example, see :ref:`page-turboChimes`.
+Multilayer fitting learns multiple ChIMES functional layers (typically short and long range) from the same reference database using ``N_HYPER_SETS`` and numbered ``fm_setup`` files (for example, ``0.fm_setup.in`` and ``1.fm_setup.in``). For workflow, mathematics, directory layout, and the bundled propane example, see :ref:`page-turboChimes`.
 
 
 =================================
